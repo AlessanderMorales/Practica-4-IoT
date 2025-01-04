@@ -8,9 +8,9 @@ void RelayControl::begin() {
 }
 
 void RelayControl::turnOn() {
-  digitalWrite(pin, HIGH);
+  digitalWrite(pin, LOW);
 }
 
 void RelayControl::turnOff() {
-  digitalWrite(pin, LOW);
+  digitalWrite(pin, HIGH);
 }

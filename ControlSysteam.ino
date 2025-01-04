@@ -25,12 +25,12 @@ const char* CLIENT_ID = "Incubator_0004";
 const char* UPDATE_TOPIC = "$aws/things/Incubator_0004/shadow/update";
 const char* UPDATE_DELTA_TOPIC = "$aws/things/Incubator_0004/shadow/update/delta";
 
-StaticJsonDocument<JSON_OBJECT_SIZE(64)> outputDoc;
-StaticJsonDocument<JSON_OBJECT_SIZE(64)> inputDoc;
+StaticJsonDocument<JSON_OBJECT_SIZE(256)> outputDoc;
+StaticJsonDocument<JSON_OBJECT_SIZE(256)> inputDoc;
 char outputBuffer[128];
 String StateFocus = "off"; 
 String StateFan = "off";       
-String StateSensor = "on";
+String StateSensor = "light";
 WiFiClientSecure wiFiClient;
 PubSubClient client(wiFiClient);
 WiFiManager wifiManager(WIFI_SSID, WIFI_PASS);
@@ -73,12 +73,20 @@ void reportFoco() {
 }
 
 void reportStateSensor() {
+  if (ldr.isDark()) {
+    StateSensor = "dark"; 
+    Serial.println("Está oscuro en la incubadora");
+  } else {
+    StateSensor = "light"; 
+    Serial.println("Hay luz en la incubadora");
+  }
   outputDoc["state"]["reported"]["StateSensor"] = StateSensor;
   serializeJson(outputDoc, outputBuffer);
   client.publish(UPDATE_TOPIC, outputBuffer); 
   Serial.print("Estado de StateSensor reportado: ");
   Serial.println(StateSensor);
 }
+
 
 void reportFan() {
   outputDoc["state"]["reported"]["StateFan"] = StateFan;
@@ -90,27 +98,18 @@ void reportFan() {
 
 
 void setBuiltFoco() {
-  if (StateSensor == "on") {
-    if (ldr.isDark()) {  // Llamada corregida al método isDark
-      relay.turnOn();
-      Serial.println("Hay luz. Rele apagado.");
-      StateFocus = "off";
-      reportFoco();
-    } else {
-      relay.turnOff();
-      Serial.println("Oscuridad detectada. Rele encendido.");
-      StateFocus = "on";
-      reportFoco();
-    }
+  if (StateFocus == "on") {
+    relay.turnOn();
+    Serial.println("foco encendido");
   } else {
     relay.turnOff();
-    Serial.println("LDRSensor está apagado. Rele apagado.");
-    if (StateFocus != "off") {
-      StateFocus = "off";
-      reportFoco(); 
-    }
+    Serial.println("foco apagado");
   }
+  reportFoco();
 }
+
+
+
 
 void controlFan(bool turnOn) {
   if (turnOn) {
@@ -139,22 +138,23 @@ void callback(char* topic, byte* payload, unsigned int length) {
   DeserializationError err = deserializeJson(inputDoc, payload);
   if (!err) {
     if (String(topic) == UPDATE_DELTA_TOPIC) {
-      if (inputDoc.containsKey("state") && inputDoc["state"].containsKey("StateSensor")) {
-        String newStateSensor = inputDoc["state"]["StateSensor"].as<String>();
-        if (newStateSensor == "off") {
-          StateSensor = "off";
-          Serial.println("Sensor apagado.");
-          reportStateSensor();
-        } else if (newStateSensor == "on") {
-          StateSensor = "on";
-          Serial.println("Sensor encendido.");
-          reportStateSensor();
+      if (inputDoc.containsKey("state") && inputDoc["state"].containsKey("StateFocus")) {
+        String newStateFocus = inputDoc["state"]["StateFocus"].as<String>();
+        if (newStateFocus == "off") {
+          StateFocus = "off";
+          Serial.println("Luz apagada");
+          reportFoco();
+        } else if (newStateFocus == "on") {
+          StateFocus = "on";
+          Serial.println("encendido");
+          reportFoco();
         }
       } else {
         Serial.println("El mensaje no contiene 'StateSensor'.");
       }
     }
-  } else {
+  }
+ else {
     Serial.print("Error deserializando JSON: ");
     Serial.println(err.f_str());
   }
@@ -167,12 +167,15 @@ void setup() {
   ldr.begin();
   setupWiFi();
 
+
   wiFiClient.setCACert(AMAZON_ROOT_CA1);
   wiFiClient.setCertificate(CERTIFICATE);
   wiFiClient.setPrivateKey(PRIVATE_KEY);
 
   client.setServer(MQTT_BROKER, MQTT_PORT);
   client.setCallback(callback);
+  StateFocus = "off";
+  setBuiltFoco();  
 }
 
 void reconnect() {
@@ -183,10 +186,9 @@ void reconnect() {
       client.subscribe(UPDATE_DELTA_TOPIC);
       Serial.println("Suscrito a " + String(UPDATE_DELTA_TOPIC));
       delay(100);
-
       reportTemperatureAndHumidity();
       setBuiltFoco();
-       reportFan(); 
+      reportFan(); 
       
     } else {
       Serial.print("Fallido, rc=");
@@ -207,5 +209,6 @@ void loop() {
     lastReport = millis();
     reportTemperatureAndHumidity();
     setBuiltFoco();
+    reportStateSensor();
   }
 }
