@@ -6,32 +6,37 @@
 #include "RelayControl.h"
 #include "WiFiManager.h"
 #include "AwsCertificate.h"
+#include "Motor.h"
 
 // Pines y configuraciones
 #define LIGHT_SENSOR_PIN 18
-#define RELAY_PIN 4
+#define RELAY_PIN 22
 #define DHT_PIN 23
 #define DHT_TYPE DHT11
+#define FAN_PIN1 19 
+#define FAN_PIN2 21
 
 DHT dht(DHT_PIN, DHT_TYPE);
-const char* WIFI_SSID = "Familia Adriazola";
-const char* WIFI_PASS = "449646AL";
+const char* WIFI_SSID = "Galaxy uwu";
+const char* WIFI_PASS = "alessander";
 const char* MQTT_BROKER = "a1j7buqf58whny-ats.iot.us-east-1.amazonaws.com";
 const int MQTT_PORT = 8883;
-const char* CLIENT_ID = "Incubator_0002";
-const char* UPDATE_TOPIC = "$aws/things/Incubator_0002/shadow/update";
-const char* UPDATE_DELTA_TOPIC = "$aws/things/Incubator_0002/shadow/update/delta";
+const char* CLIENT_ID = "Incubator_0004";
+const char* UPDATE_TOPIC = "$aws/things/Incubator_0004/shadow/update";
+const char* UPDATE_DELTA_TOPIC = "$aws/things/Incubator_0004/shadow/update/delta";
 
 StaticJsonDocument<JSON_OBJECT_SIZE(64)> outputDoc;
 StaticJsonDocument<JSON_OBJECT_SIZE(64)> inputDoc;
 char outputBuffer[128];
-String State = "off";        
+String StateFocus = "off"; 
+String StateFan = "off";       
 String StateSensor = "on";
 WiFiClientSecure wiFiClient;
 PubSubClient client(wiFiClient);
 WiFiManager wifiManager(WIFI_SSID, WIFI_PASS);
 SensorLDR ldr(LIGHT_SENSOR_PIN);
 RelayControl relay(RELAY_PIN);
+Motor motor(FAN_PIN1,FAN_PIN2);
 
 void setupWiFi() {
   wifiManager.connect();  
@@ -62,7 +67,7 @@ void reportTemperatureAndHumidity() {
 }
 
 void reportFoco() {
-  outputDoc["state"]["reported"]["State"] = State;
+  outputDoc["state"]["reported"]["StateFocus"] = StateFocus;
   serializeJson(outputDoc, outputBuffer);
   client.publish(UPDATE_TOPIC, outputBuffer);
 }
@@ -75,28 +80,53 @@ void reportStateSensor() {
   Serial.println(StateSensor);
 }
 
+void reportFan() {
+  outputDoc["state"]["reported"]["StateFan"] = StateFan;
+  serializeJson(outputDoc, outputBuffer);
+  client.publish(UPDATE_TOPIC, outputBuffer);
+  Serial.print("Fan State reported: ");
+  Serial.println(StateFan);
+}
+
+
 void setBuiltFoco() {
   if (StateSensor == "on") {
     if (ldr.isDark()) {  // Llamada corregida al método isDark
       relay.turnOn();
       Serial.println("Hay luz. Rele apagado.");
-      State = "off";
+      StateFocus = "off";
       reportFoco();
     } else {
       relay.turnOff();
       Serial.println("Oscuridad detectada. Rele encendido.");
-      State = "on";
+      StateFocus = "on";
       reportFoco();
     }
   } else {
     relay.turnOff();
     Serial.println("LDRSensor está apagado. Rele apagado.");
-    if (State != "off") {
-      State = "off";
+    if (StateFocus != "off") {
+      StateFocus = "off";
       reportFoco(); 
     }
   }
 }
+
+void controlFan(bool turnOn) {
+  if (turnOn) {
+    motor.turnRight();
+    StateFan = "on";
+    Serial.println("Fan turned ON");
+  } else {
+    motor.stop();
+    StateFan = "off";
+    Serial.println("Fan turned OFF");
+  }
+  reportFan();
+}
+
+
+
 
 void callback(char* topic, byte* payload, unsigned int length) {
   String message;
@@ -156,6 +186,8 @@ void reconnect() {
 
       reportTemperatureAndHumidity();
       setBuiltFoco();
+       reportFan(); 
+      
     } else {
       Serial.print("Fallido, rc=");
       Serial.print(client.state());
