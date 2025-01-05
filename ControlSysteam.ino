@@ -17,8 +17,8 @@
 #define FAN_PIN2 21
 
 DHT dht(DHT_PIN, DHT_TYPE);
-const char* WIFI_SSID = "Galaxy uwu";
-const char* WIFI_PASS = "alessander";
+const char* WIFI_SSID = "Familia Adriazola";
+const char* WIFI_PASS = "449646AL";
 const char* MQTT_BROKER = "a1j7buqf58whny-ats.iot.us-east-1.amazonaws.com";
 const int MQTT_PORT = 8883;
 const char* CLIENT_ID = "Incubator_0004";
@@ -109,17 +109,15 @@ void setBuiltFoco() {
 }
 
 
-
-
 void controlFan(bool turnOn) {
   if (turnOn) {
     motor.turnRight();
     StateFan = "on";
-    Serial.println("Fan turned ON");
+    Serial.println("Ventilador encendido");
   } else {
     motor.stop();
     StateFan = "off";
-    Serial.println("Fan turned OFF");
+    Serial.println("Ventilador apagado");
   }
   reportFan();
 }
@@ -127,6 +125,8 @@ void controlFan(bool turnOn) {
 
 
 
+
+// Actualización en la función callback para manejar el ventilador
 void callback(char* topic, byte* payload, unsigned int length) {
   String message;
   for (int i = 0; i < length; i++) {
@@ -138,27 +138,38 @@ void callback(char* topic, byte* payload, unsigned int length) {
   DeserializationError err = deserializeJson(inputDoc, payload);
   if (!err) {
     if (String(topic) == UPDATE_DELTA_TOPIC) {
-      if (inputDoc.containsKey("state") && inputDoc["state"].containsKey("StateFocus")) {
-        String newStateFocus = inputDoc["state"]["StateFocus"].as<String>();
-        if (newStateFocus == "off") {
-          StateFocus = "off";
-          Serial.println("Luz apagada");
-          reportFoco();
-        } else if (newStateFocus == "on") {
-          StateFocus = "on";
-          Serial.println("encendido");
-          reportFoco();
+      if (inputDoc.containsKey("state")) {
+        if (inputDoc["state"].containsKey("StateFocus")) {
+          String newStateFocus = inputDoc["state"]["StateFocus"].as<String>();
+          if (newStateFocus == "off") {
+            StateFocus = "off";
+            Serial.println("Luz apagada");
+            setBuiltFoco();
+          } else if (newStateFocus == "on") {
+            StateFocus = "on";
+            Serial.println("Luz encendida");
+            setBuiltFoco();
+          }
+        }
+
+        if (inputDoc["state"].containsKey("StateFan")) {
+          String newStateFan = inputDoc["state"]["StateFan"].as<String>();
+          if (newStateFan == "on") {
+            controlFan(true);  // Encender el ventilador
+          } else if (newStateFan == "off") {
+            controlFan(false); // Apagar el ventilador
+          }
         }
       } else {
-        Serial.println("El mensaje no contiene 'StateSensor'.");
+        Serial.println("El mensaje no contiene 'state'.");
       }
     }
-  }
- else {
+  } else {
     Serial.print("Error deserializando JSON: ");
     Serial.println(err.f_str());
   }
 }
+
 
 void setup() {
   Serial.begin(115200);
@@ -166,7 +177,6 @@ void setup() {
   relay.begin();
   ldr.begin();
   setupWiFi();
-
 
   wiFiClient.setCACert(AMAZON_ROOT_CA1);
   wiFiClient.setCertificate(CERTIFICATE);
@@ -176,6 +186,8 @@ void setup() {
   client.setCallback(callback);
   StateFocus = "off";
   setBuiltFoco();  
+  StateFan = "off";
+  controlFan(false);  // Agregado argumento booleano
 }
 
 void reconnect() {
@@ -189,6 +201,7 @@ void reconnect() {
       reportTemperatureAndHumidity();
       setBuiltFoco();
       reportFan(); 
+      controlFan(false);  // Agregado argumento booleano
       
     } else {
       Serial.print("Fallido, rc=");
@@ -210,5 +223,6 @@ void loop() {
     reportTemperatureAndHumidity();
     setBuiltFoco();
     reportStateSensor();
+    controlFan(false);  // Agregado argumento booleano
   }
 }
