@@ -4,18 +4,30 @@ const IotData = new AWS.IotData({endpoint: 'a1j7buqf58whny-ats.iot.us-east-1.ama
 const lambda = new AWS.Lambda();
 
 const TurnOffParams = {
-    thingName: 'Incubator_0002',
-    payload: '{"state": {"desired": {"StateSensor": "off"}}}',
+    thingName: 'Incubator_0004',
+    payload: '{"state": {"desired": {"StateFocus": "off"}}}',
 };
 
 const TurnOnParams = {
-    thingName: 'Incubator_0002',
-    payload: '{"state": {"desired": {"StateSensor": "on"}}}',
+    thingName: 'Incubator_0004',
+    payload: '{"state": {"desired": {"StateFocus": "on"}}}',
 };
+
+const TurnOnFanParams = {
+    thingName: 'Incubator_0004',
+    payload: '{"state": {"desired": {"StateFan": "on"}}}',
+};
+
+const TurnOffFanParams = {
+    thingName: 'Incubator_0004',
+    payload: '{"state": {"desired": {"StateFan": "off"}}}',
+};
+
+
 
 // Parámetros para consultar el shadow de la incubadora
 const ShadowParams = {
-    thingName: 'Incubator_0002',  // El nombre del dispositivo
+    thingName: 'Incubator_0004',  // El nombre del dispositivo
 };
 
 // Función para obtener el estado del shadow
@@ -24,7 +36,7 @@ function getShadowPromise(params) {
         IotData.getThingShadow(params, (err, data) => {
             if (err) {
                 console.log(err, err.stack);
-                reject('Failed to get thing shadow ${err.errorMessage}');
+                reject(`Failed to get thing shadow: ${err.errorMessage}`);
             } else {
                 resolve(JSON.parse(data.payload));
             }
@@ -34,7 +46,7 @@ function getShadowPromise(params) {
 
 // Función para obtener la temperatura
 async function getTemperature() {
-    const params = { thingName: 'Incubator_0002' };
+    const params = { thingName: 'Incubator_0004' };
     try {
         const result = await getShadowPromise(params);
         const Temperature = result.state.reported.Temperature;  // Accede a la temperatura desde el shadow
@@ -47,7 +59,7 @@ async function getTemperature() {
 
 // Función para obtener la humedad
 async function getHumidity() {
-    const params = { thingName: 'Incubator_0002' };
+    const params = { thingName: 'Incubator_0004' };
     try {
         const result = await getShadowPromise(params);
         const Humidity = result.state.reported.Humidity;  // Accede a la humedad desde el shadow
@@ -59,12 +71,12 @@ async function getHumidity() {
 }
 
 // Función para obtener el estado del foco
-async function getState() {
-    const params = { thingName: 'Incubator_0002' };
+async function getStateFocus() {
+    const params = { thingName: 'Incubator_0004' };
     try {
         const result = await getShadowPromise(params);
-        const State = result.state.reported.State;  // Accede al estado del foco desde el shadow
-        return State;
+        const StateFocus = result.state.reported.StateFocus;  // Accede al estado del foco desde el shadow
+        return StateFocus;
     } catch (error) {
         console.log("Error al obtener el estado del foco:", error);
         return null;
@@ -85,10 +97,10 @@ const LaunchRequestHandler = {
     }
 };
 
-const TurnOnSensorIntendHandler = {
+const TurnOnLightIntendHandler = {
     canHandle(handlerInput) {
         return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
-            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'TurnOnSensorIntend';
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'TurnOnLightIntend';
     },
     handle(handlerInput) {
         var speakOutput = "Error";
@@ -96,7 +108,7 @@ const TurnOnSensorIntendHandler = {
             if (err) console.log(err);
         });
       
-        speakOutput = 'Solicitaste encender el sensor!';
+        speakOutput = 'Solicitaste encender el Foco!';
 
         return handlerInput.responseBuilder
             .speak(speakOutput)
@@ -105,10 +117,10 @@ const TurnOnSensorIntendHandler = {
     }
 };
 
-const TurnOffSensorIntendHandler = {
+const TurnOffLightIntendHandler = {
     canHandle(handlerInput) {
         return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
-            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'TurnOffSensorIntend';
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'TurnOffLightIntend';
     },
     handle(handlerInput) {
         var speakOutput = "Error";
@@ -116,7 +128,7 @@ const TurnOffSensorIntendHandler = {
             if (err) console.log(err);
         });
       
-        speakOutput = 'Solicitaste apagar el sensor!';
+        speakOutput = 'Solicitaste apagar el Foco!';
 
         return handlerInput.responseBuilder
             .speak(speakOutput)
@@ -124,6 +136,51 @@ const TurnOffSensorIntendHandler = {
             .getResponse();
     }
 };
+
+const TurnOnFanIntentHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'TurnOnFanIntent';
+    },
+    handle(handlerInput) {
+        let speakOutput = 'El ventilador ha sido encendido.';
+        IotData.updateThingShadow(TurnOnFanParams, function(err, data) {
+            if (err) {
+                console.log(err);
+            } else {
+                speakOutput = 'Error al intentar encender el ventilador.';
+            }
+        });
+
+        return handlerInput.responseBuilder
+            .speak(speakOutput)
+            .reprompt(speakOutput)
+            .getResponse();
+    }
+};
+
+const TurnOffFanIntentHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'TurnOffFanIntent';
+    },
+    handle(handlerInput) {
+        let speakOutput = 'El ventilador ha sido apagado.';
+        IotData.updateThingShadow(TurnOffFanParams, function(err, data) {
+            if (err) {
+                console.log(err);
+            } else {
+                speakOutput = 'Error al intentar apagar el ventilador.';
+            }
+        });
+
+        return handlerInput.responseBuilder
+            .speak(speakOutput)
+            .reprompt(speakOutput)
+            .getResponse();
+    }
+};
+
 
 const StateIntendHandler = {
     canHandle(handlerInput) {
@@ -157,12 +214,12 @@ const StateLightIntentHandler = {
             && Alexa.getIntentName(handlerInput.requestEnvelope) === 'StateLightIntent';
     },
     async handle(handlerInput) {
-        const State = await getState();
+        const StateFocus = await getStateFocus();
         let speakOutput = 'Error al obtener el estado del foco';
-        if (State !== null) {
-            if (State === "on") {
+        if (StateFocus !== null) {
+            if (StateFocus === "on") {
                 speakOutput = 'El foco está encendido';
-            } else if (State === "off") {
+            } else if (StateFocus === "off") {
                 speakOutput = 'El foco está apagado';
             } else {
                 speakOutput = 'No se pudo determinar el estado del foco';
@@ -185,7 +242,7 @@ const GetTemperatureIntentHandler = {
         const Temperature = await getTemperature();
         let speakOutput = 'Error al obtener la temperatura';
         if (Temperature !== null) {
-            speakOutput = La temperatura actual es ${Temperature} grados Celsius.;
+            speakOutput = `La temperatura actual es ${Temperature} grados Celsius.`;
         }
 
         return handlerInput.responseBuilder
@@ -204,7 +261,7 @@ const GetHumidityIntentHandler = {
         const Humidity = await getHumidity();
         let speakOutput = 'Error al obtener la humedad';
         if (Humidity !== null) {
-            speakOutput = La humedad actual es ${Humidity}%.;
+            speakOutput = `La humedad actual es ${Humidity}%.`;
         }
 
         return handlerInput.responseBuilder
@@ -213,6 +270,84 @@ const GetHumidityIntentHandler = {
             .getResponse();
     }
 };
+
+// Función para obtener el estado del ventilador
+async function getStateFan() {
+    const params = { thingName: 'Incubator_0004' };
+    try {
+        const result = await getShadowPromise(params);
+        const StateFan = result.state.reported.StateFan;  // Accede al estado del ventilador desde el shadow
+        return StateFan;
+    } catch (error) {
+        console.log("Error al obtener el estado del ventilador:", error);
+        return null;
+    }
+}
+
+// Nuevo intent handler para obtener el estado del ventilador
+const StateFanIntentHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'StateFanIntent';
+    },
+    async handle(handlerInput) {
+        const StateFan = await getStateFan();
+        let speakOutput = 'Error al obtener el estado del ventilador';
+        if (StateFan !== null) {
+            if (StateFan === "on") {
+                speakOutput = 'El ventilador está encendido';
+            } else if (StateFan === "off") {
+                speakOutput = 'El ventilador está apagado';
+            } else {
+                speakOutput = 'No se pudo determinar el estado del ventilador';
+            }
+        }
+
+        return handlerInput.responseBuilder
+            .speak(speakOutput)
+            .reprompt(speakOutput)
+            .getResponse();
+    }
+};
+
+
+
+async function getGeneralState() {
+    const Temperature = await getTemperature();
+    const Humidity = await getHumidity();
+    const StateFocus = await getStateFocus();
+    
+    let generalState = 'No se pudo obtener el estado general de la incubadora.';
+
+    if (Temperature !== null && Humidity !== null && StateFocus !== null) {
+        generalState = `El estado actual de la incubadora es el siguiente: 
+        Temperatura: ${Temperature} grados Celsius, 
+        Humedad: ${Humidity}%, 
+        Foco: ${StateFocus === 'on' ? 'encendido' : 'apagado'}.`;
+    }
+
+    return generalState;
+}
+
+
+const GeneralStateIntentHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'GeneralStateIntent';
+    },
+    async handle(handlerInput) {
+        const generalState = await getGeneralState();
+
+        return handlerInput.responseBuilder
+            .speak(generalState)
+            .reprompt(generalState)
+            .getResponse();
+    }
+};
+
+
+
+
 
 const HelpIntentHandler = {
     canHandle(handlerInput) {
@@ -264,7 +399,7 @@ const SessionEndedRequestHandler = {
         return Alexa.getRequestType(handlerInput.requestEnvelope) === 'SessionEndedRequest';
     },
     handle(handlerInput) {
-        console.log(~~~~ Session ended: ${JSON.stringify(handlerInput.requestEnvelope)});
+        console.log(`~~~~ Session ended: ${JSON.stringify(handlerInput.requestEnvelope)}`);
         return handlerInput.responseBuilder.getResponse();
     }
 };
@@ -275,7 +410,7 @@ const IntentReflectorHandler = {
     },
     handle(handlerInput) {
         const intentName = Alexa.getIntentName(handlerInput.requestEnvelope);
-        const speakOutput = Intentó ejecutar ${intentName};
+        const speakOutput = `Intentó ejecutar ${intentName}`;
 
         return handlerInput.responseBuilder
             .speak(speakOutput)
@@ -289,7 +424,7 @@ const ErrorHandler = {
     },
     handle(handlerInput, error) {
         const speakOutput = 'Disculpa, hubo un error. Intenta de nuevo.';
-        console.log(~~~~ Error handled: ${JSON.stringify(error)});
+        console.log(`~~~~ Error handled: ${JSON.stringify(error)}`);
 
         return handlerInput.responseBuilder
             .speak(speakOutput)
@@ -301,12 +436,16 @@ const ErrorHandler = {
 exports.handler = Alexa.SkillBuilders.custom()
     .addRequestHandlers(
         LaunchRequestHandler,
-        TurnOnSensorIntendHandler,
-        TurnOffSensorIntendHandler,
+        TurnOnLightIntendHandler,
+        TurnOffLightIntendHandler,
+        TurnOnFanIntentHandler,
+        TurnOffFanIntentHandler,
         StateIntendHandler,
         StateLightIntentHandler,
         GetTemperatureIntentHandler,
         GetHumidityIntentHandler,
+        StateFanIntentHandler,
+        GeneralStateIntentHandler,
         HelpIntentHandler,
         CancelAndStopIntentHandler,
         FallbackIntentHandler,
